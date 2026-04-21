@@ -1,6 +1,6 @@
 (async function(codioIDE, window) {
 
-  const VERSION = "2.0.0";
+  const VERSION = "2.0.1";
 
   const systemPrompt = `You are a friendly and helpful coding coach for 7th grade students learning PyGame Zero for the first time.
 
@@ -82,7 +82,7 @@ The student says: ${initialInput}`;
     let result = await codioIDE.coachBot.ask({
       systemPrompt: systemPrompt,
       messages: messages
-    }, { preventMenu: true, stream: true, modelSettings: { temperature: 0.7, maxTokens: 1024 } });
+    }, { preventMenu: true });
 
     messages.push({"role": "assistant", "content": result.result});
 
@@ -106,7 +106,7 @@ The student says: ${initialInput}`;
       result = await codioIDE.coachBot.ask({
         systemPrompt: systemPrompt,
         messages: messages
-      }, { preventMenu: true, stream: true, modelSettings: { temperature: 0.7, maxTokens: 1024 } });
+      }, { preventMenu: true });
 
       messages.push({"role": "assistant", "content": result.result});
 
