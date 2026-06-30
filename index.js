@@ -1,6 +1,6 @@
 (async function(codioIDE, window) {
 
-  const VERSION = "2.0.1";
+  const VERSION = "2.1.0";
 
   const systemPrompt = `You are a friendly and helpful coding coach for 7th grade students learning PyGame Zero for the first time.
 
@@ -35,11 +35,11 @@ What you CANNOT do:
 
   const exitPhrases = ["thanks", "thank you", "bye", "done", "exit", "quit", "stop", "no thanks", "i'm good", "im good", "that's all", "thats all"];
 
-  codioIDE.coachBot.register("iNeedHelpButton", "PyGame Questions", onButtonPress);
+  codioIDE.coachBot.register("pygameZeroHelp", "PyGame Zero Coach", onButtonPress);
 
   async function onButtonPress() {
     codioIDE.coachBot.write(
-      `PyGame Zero Assistant v${VERSION} - Ask me questions about PyGame Zero!`,
+      `PyGame Zero Coach v${VERSION} - Ask me questions about PyGame Zero!`,
       codioIDE.coachBot.MESSAGE_ROLES.ASSISTANT
     );
 
@@ -48,10 +48,21 @@ What you CANNOT do:
     // Get initial context
     const context = await codioIDE.coachBot.getContext();
 
-    const initialInput = await codioIDE.coachBot.input("What's your PyGame Zero question?");
+    let initialInput;
+    while (true) {
+      try {
+        initialInput = await codioIDE.coachBot.input("What's your PyGame Zero question?");
+      } catch (e) {
+        codioIDE.coachBot.showMenu();
+        return;
+      }
 
-    if (initialInput === "version") {
-      codioIDE.coachBot.write(`Current version: ${VERSION}`, codioIDE.coachBot.MESSAGE_ROLES.ASSISTANT);
+      if (initialInput === "version") {
+        codioIDE.coachBot.write(`Current version: ${VERSION}`, codioIDE.coachBot.MESSAGE_ROLES.ASSISTANT);
+        continue;
+      }
+
+      break;
     }
 
     // Build structured first message with student's files and guide
@@ -79,17 +90,22 @@ The student says: ${initialInput}`;
       "content": initialUserPrompt
     });
 
-    let result = await codioIDE.coachBot.ask({
-      systemPrompt: systemPrompt,
-      messages: messages
-    }, { preventMenu: true });
-
-    messages.push({"role": "assistant", "content": result.result});
+    try {
+      const result = await codioIDE.coachBot.ask({
+        systemPrompt: systemPrompt,
+        messages: messages
+      }, { preventMenu: true });
+      messages.push({"role": "assistant", "content": result.result});
+    } catch (e) {
+      codioIDE.coachBot.write("Hmm, something went wrong on my end. Try asking that again!");
+      messages.pop();
+    }
 
     while (true) {
-      const input = await codioIDE.coachBot.input("What else can I help you with?");
-
-      if (exitPhrases.some(phrase => input.toLowerCase().includes(phrase))) {
+      let input;
+      try {
+        input = await codioIDE.coachBot.input("What else can I help you with? (Say 'thanks' when you're done!)");
+      } catch (e) {
         break;
       }
 
@@ -98,21 +114,31 @@ The student says: ${initialInput}`;
         continue;
       }
 
+      const trimmedInput = input.trim().toLowerCase();
+      if (exitPhrases.includes(trimmedInput)) {
+        break;
+      }
+
       messages.push({
         "role": "user",
         "content": input
       });
 
-      result = await codioIDE.coachBot.ask({
-        systemPrompt: systemPrompt,
-        messages: messages
-      }, { preventMenu: true });
-
-      messages.push({"role": "assistant", "content": result.result});
+      try {
+        const result = await codioIDE.coachBot.ask({
+          systemPrompt: systemPrompt,
+          messages: messages
+        }, { preventMenu: true });
+        messages.push({"role": "assistant", "content": result.result});
+      } catch (e) {
+        codioIDE.coachBot.write("Hmm, something went wrong on my end. Try asking that again!");
+        messages.pop();
+        continue;
+      }
 
       // Keep first message (with files + guide) + last 8 messages (4 exchanges)
-      if (messages.length > 9) {
-        messages = [messages[0], ...messages.slice(-8)];
+      while (messages.length > 9) {
+        messages.splice(1, 2); // drop the oldest assistant+user pair, keep messages[0] (context) intact
       }
     }
 
