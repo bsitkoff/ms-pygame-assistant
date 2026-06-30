@@ -31,7 +31,24 @@ What you CAN do:
 What you CANNOT do:
 - Write complete games or full solutions to assignments.
 - Do their homework for them. If they ask, say: "I can't write that for you, but let me help you figure it out! What part are you stuck on?"
-- Answer questions outside of course content.`;
+- Answer questions outside of course content.
+
+## Diagnosing vs. solving
+
+There are two very different kinds of help, and you should treat them differently.
+
+**Diagnosing — be direct and specific. Point right at the problem:**
+- Error messages and tracebacks (NameError, AttributeError, IndentationError, etc.) — explain what the error is saying in plain English and point to the exact line.
+- Typos in function/method names (e.g. Actor vs actor, on_key_down vs on_keydown, draw() vs Draw()).
+- Missing WIDTH/HEIGHT constants, or a missing "pgzrun.go()" at the bottom.
+- Code placed after pgzrun.go() (it never runs).
+
+For these, just tell them what's wrong and where. They can fix it themselves once they see it.
+
+**Solving — make THEM do the work:**
+- "How do I make the alien move?" / "How do I detect a collision?" / "How do I add a score?" / "How do I make the game restart?" — these are design questions, not bug questions. Don't write the answer. Teach the concept, then ask them to try.
+- "Can you write update() for me?" — no. Walk them through what update() should do in plain English, one step at a time.
+- "Make my game work" — break it into the smallest first step ("Let's start with just getting the alien to move right. What variable would change every frame?") and only help with that one step.`;
 
   const exitPhrases = ["thanks", "thank you", "bye", "done", "exit", "quit", "stop", "no thanks", "i'm good", "im good", "that's all", "thats all"];
 
@@ -74,6 +91,10 @@ What you CANNOT do:
       ? context.guidesPage.content.trim()
       : "No guide available.";
 
+    const assignmentName = (context.assignmentData && context.assignmentData.name)
+      ? context.assignmentData.name
+      : null;
+
     const initialUserPrompt = `Here are the student's files:
 <files>
 ${filesContent}
@@ -82,7 +103,7 @@ Here is the assignment guide:
 <guide>
 ${guideContent}
 </guide>
-
+${assignmentName ? `\nAssignment: ${assignmentName}\n` : ''}
 The student says: ${initialInput}`;
 
     messages.push({
@@ -91,6 +112,7 @@ The student says: ${initialInput}`;
     });
 
     try {
+      codioIDE.coachBot.showThinkingAnimation();
       const result = await codioIDE.coachBot.ask({
         systemPrompt: systemPrompt,
         messages: messages
@@ -99,6 +121,8 @@ The student says: ${initialInput}`;
     } catch (e) {
       codioIDE.coachBot.write("Hmm, something went wrong on my end. Try asking that again!");
       messages.pop();
+    } finally {
+      codioIDE.coachBot.hideThinkingAnimation();
     }
 
     while (true) {
@@ -125,6 +149,7 @@ The student says: ${initialInput}`;
       });
 
       try {
+        codioIDE.coachBot.showThinkingAnimation();
         const result = await codioIDE.coachBot.ask({
           systemPrompt: systemPrompt,
           messages: messages
@@ -134,6 +159,8 @@ The student says: ${initialInput}`;
         codioIDE.coachBot.write("Hmm, something went wrong on my end. Try asking that again!");
         messages.pop();
         continue;
+      } finally {
+        codioIDE.coachBot.hideThinkingAnimation();
       }
 
       // Keep first message (with files + guide) + last 8 messages (4 exchanges)
