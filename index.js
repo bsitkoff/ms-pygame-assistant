@@ -1,6 +1,6 @@
 (async function(codioIDE, window) {
 
-  const VERSION = "2.4.0";
+  const VERSION = "2.4.1";
 
   const systemPrompt = `You are a friendly and helpful coding coach for 7th grade students learning PyGame Zero for the first time.
 
@@ -128,6 +128,19 @@ The student says: ${initialInput}`;
     }
   }
 
+  // Never block the conversation on a log write — shared pattern, see the coaches
+  // CLAUDE.md "Session Logging". saveSessionHistory() is a full read-modify-rewrite
+  // (deleteFiles + add) of the shared log; awaiting it in the turn loop means a
+  // stalled write freezes the coach with no input box. queueSave() serializes
+  // writes on a promise chain (overlapping fire-and-forget saves can't corrupt the
+  // file) and is called WITHOUT await each turn; only the end-of-session flush is awaited.
+  let saveChain = Promise.resolve();
+  function queueSave(history) {
+    saveChain = saveChain.then(function() { return saveSessionHistory(history); }).catch(function() {});
+    return saveChain;
+  }
+
+
   async function onButtonPress() {
     codioIDE.coachBot.write(
       `PyGame Zero Coach v${VERSION} - Ask me questions about PyGame Zero!`,
@@ -171,7 +184,7 @@ The student says: ${initialInput}`;
         session.questions.push(String(question).slice(0, 300));
       }
       session.updated = new Date().toISOString();
-      await saveSessionHistory(sessionHistory);
+      queueSave(sessionHistory); // fire-and-forget: never block the input loop on a log write
     }
 
     await recordTurn(initialInput);
@@ -249,7 +262,7 @@ The student says: ${initialInput}`;
     }
 
     session.ended = new Date().toISOString();
-    await saveSessionHistory(sessionHistory);
+    await queueSave(sessionHistory); // flush queued writes (safe to await — no input follows)
 
     codioIDE.coachBot.write("You're welcome! Feel free to ask more questions about PyGame Zero!", codioIDE.coachBot.MESSAGE_ROLES.ASSISTANT);
     codioIDE.coachBot.showMenu();
