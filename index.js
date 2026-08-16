@@ -1,6 +1,6 @@
 (async function(codioIDE, window) {
 
-  const VERSION = "2.1.0";
+  const VERSION = "2.3.0";
 
   const systemPrompt = `You are a friendly and helpful coding coach for 7th grade students learning PyGame Zero for the first time.
 
@@ -54,6 +54,36 @@ For these, just tell them what's wrong and where. They can fix it themselves onc
 
   codioIDE.coachBot.register("pygameZeroHelp", "PyGame Zero Coach", onButtonPress);
 
+  // Build the context-bearing first message from a fresh getContext() read.
+  // Re-run before every ask() so the coach sees the student's latest edits,
+  // not their code as of the button press.
+  async function buildContextMessage(initialInput) {
+    const context = await codioIDE.coachBot.getContext();
+
+    const filesContent = (context.files && context.files.length > 0)
+      ? context.files.map(f => `File: ${f.path}\n${f.content}`).join('\n\n')
+      : "No files available.";
+
+    const guideContent = (context.guidesPage && context.guidesPage.content && context.guidesPage.content.trim().length > 0)
+      ? context.guidesPage.content.trim()
+      : "No guide available.";
+
+    const assignmentName = (context.assignmentData && context.assignmentData.name)
+      ? context.assignmentData.name
+      : null;
+
+    return `Here are the student's files (current as of their latest question):
+<files>
+${filesContent}
+</files>
+Here is the assignment guide:
+<guide>
+${guideContent}
+</guide>
+${assignmentName ? `\nAssignment: ${assignmentName}\n` : ''}
+The student says: ${initialInput}`;
+  }
+
   async function onButtonPress() {
     codioIDE.coachBot.write(
       `PyGame Zero Coach v${VERSION} - Ask me questions about PyGame Zero!`,
@@ -61,9 +91,6 @@ For these, just tell them what's wrong and where. They can fix it themselves onc
     );
 
     let messages = [];
-
-    // Get initial context
-    const context = await codioIDE.coachBot.getContext();
 
     let initialInput;
     while (true) {
@@ -82,33 +109,9 @@ For these, just tell them what's wrong and where. They can fix it themselves onc
       break;
     }
 
-    // Build structured first message with student's files and guide
-    const filesContent = (context.files && context.files.length > 0)
-      ? context.files.map(f => `File: ${f.path}\n${f.content}`).join('\n\n')
-      : "No files available.";
-
-    const guideContent = (context.guidesPage && context.guidesPage.content && context.guidesPage.content.trim().length > 0)
-      ? context.guidesPage.content.trim()
-      : "No guide available.";
-
-    const assignmentName = (context.assignmentData && context.assignmentData.name)
-      ? context.assignmentData.name
-      : null;
-
-    const initialUserPrompt = `Here are the student's files:
-<files>
-${filesContent}
-</files>
-Here is the assignment guide:
-<guide>
-${guideContent}
-</guide>
-${assignmentName ? `\nAssignment: ${assignmentName}\n` : ''}
-The student says: ${initialInput}`;
-
     messages.push({
       "role": "user",
-      "content": initialUserPrompt
+      "content": await buildContextMessage(initialInput)
     });
 
     try {
@@ -147,6 +150,13 @@ The student says: ${initialInput}`;
         "role": "user",
         "content": input
       });
+
+      // Refresh the context block so the coach sees the student's latest edits
+      try {
+        messages[0] = { "role": "user", "content": await buildContextMessage(initialInput) };
+      } catch (e) {
+        // Keep the previous context if the refresh fails
+      }
 
       try {
         codioIDE.coachBot.showThinkingAnimation();
